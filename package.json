@@ -1,0 +1,75 @@
+{
+  "name": "price-check",
+  "productName": "Price Check",
+  "version": "1.0.0",
+  "description": "Load a shopping list from Excel, compare prices across Takealot, Amazon.co.za, Clicks, Dis-Chem and Makro, and export the results to Excel.",
+  "main": "main.js",
+  "author": "Marnus Fourie",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/run.js",
+    "sample": "node build/make-sample.js",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "za.co.pricecheck.app",
+    "productName": "Price Check",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*",
+      "sample/**/*",
+      "package.json"
+    ],
+    "afterPack": "build/afterPack.js",
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "identity": null
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://example.invalid/updates"
+      }
+    ],
+    "electronLanguages": [
+      "en-US",
+      "en-GB"
+    ]
+  }
+}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <title>Price Check</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Price Check</h1>
+    <p>Load a shopping list, compare prices across Takealot, Amazon.co.za, Clicks, Dis-Chem and Makro, then export to Excel.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2><span class="n">1</span> Shopping list</h2>
+      <div class="row">
+        <button id="btn-open" class="primary">Choose Excel list...</button>
+        <button id="btn-sample" class="ghost">Save a sample list</button>
+        <span id="list-path" class="muted"></span>
+      </div>
+      <p class="muted small">Columns: name, brand, variant, size, quantity, alternatives, notes (optional: search terms, must include). The sample shows the format.</p>
+      <div id="list-error" class="error" hidden></div>
+      <div class="scroll"><table id="list-table" hidden>
+        <thead><tr><th>#</th><th>Item</th><th>Brand</th><th>Size rule</th><th>Qty</th><th>Alternatives</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">2</span> Stores</h2>
+      <div id="stores" class="row wrap"></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">3</span> Search</h2>
+      <div class="row">
+        <button id="btn-run" class="primary" disabled>Search prices</button>
+        <button id="btn-cancel" class="ghost" hidden>Cancel</button>
+        <span id="status" class="muted"></span>
+      </div>
+      <div class="bar" id="bar" hidden><div id="bar-fill"></div></div>
+    </section>
+
+    <section class="card" id="results-card" hidden>
+      <h2><span class="n">4</span> Results</h2>
+      <div class="row">
+        <button id="btn-export" class="primary">Export to Excel...</button>
+        <span id="total" class="total"></span>
+      </div>
+      <div id="notes" class="notes"></div>
+      <div class="scroll"><table id="results-table">
+        <thead><tr><th>#</th><th>Item</th><th>Best store</th><th>Product</th><th class="num">Cost for qty</th><th class="num">Price</th><th>Flags</th><th>Cheapest alternative</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <h3>All listings found</h3>
+      <div id="all"></div>
+    </section>
+  </main>
+
+  <div id="modal" class="modal" hidden>
+    <div class="dialog">
+      <h3 id="modal-title">Human check</h3>
+      <p id="modal-text"></p>
+      <div class="row">
+        <button id="btn-continue" class="primary">I have completed it - continue</button>
+        <button id="btn-skip" class="ghost">Skip this store</button>
+      </div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

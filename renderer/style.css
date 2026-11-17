@@ -39,3 +39,6 @@ a.link { color: #1a56c4; cursor: pointer; text-decoration: underline; }
 .modal[hidden] { display: none; }
 .dialog { background: #fff; border-radius: 12px; padding: 20px 24px; width: 460px; }
 .nf { color: #8a90a6; font-style: italic; }
+
+.thumb { height: 44px; width: auto; border-radius: 4px; border: 1px solid #d8dbe6; display: block; }
+.chip.look { background: #efe7fb; color: #4b2a85; }

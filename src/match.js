@@ -1,5 +1,6 @@
 'use strict';
 const { parseSize, allSizes, toBase, tokens } = require('./parse');
+const THRESH = require('./thresholds');
 
 const GENERIC_BRAND = /^(any|none|n\/a|-)?$/i;
 
@@ -82,6 +83,8 @@ function prepareItem(raw, i) {
     needed: q.needed,
     alternativesOK: /^(y|yes|true|1)/i.test(cleanCell(raw.alternatives)),
     notes: cleanCell(raw.notes),
+    hasImage: !!raw.image,
+    pictureError: cleanCell(raw.pictureError),
     must,
     brandTokens,
     coreTokens: core,
@@ -93,6 +96,29 @@ function prepareItem(raw, i) {
     },
   };
   return item;
+}
+
+// Use what the picture says (see ocr.js summarise) to fill in or extend an item.
+function applyPicture(item, sum) {
+  const words = (sum.top || []).filter(Boolean);
+  item.pictureWords = words;
+  item.pictureSizes = sum.sizes || [];
+  item.pictureBrand = tokens(sum.brandGuess || '');
+  if (!item.name && sum.name) {
+    item.name = sum.name;
+    item.nameFromPicture = true;
+    item.coreTokens = Array.from(new Set(tokens(sum.name)));
+    const w = words.length ? words : sum.name.split(/\s+/);
+    item.queries.full = w.slice(0, 3).join(' ');
+    item.queries.short = w.slice(0, 2).join(' ');
+    item.queries.brand = sum.brandGuess || w[0] || '';
+    if (!item.size && item.pictureSizes[0]) { item.size = item.pictureSizes[0]; item.spec = sizeSpec(item.size, ''); item.spec && (item.spec.flexible = true); }
+    item.alternativesOK = true;
+  }
+  const brandSet = new Set(item.brandTokens.concat(item.pictureBrand));
+  const generic = tokens(item.nameFromPicture ? sum.name : item.name).filter((t) => !brandSet.has(t));
+  item.queries.image = words.slice(0, 3).join(' ');
+  item.queries.generic = generic.slice(0, 3).join(' ');
 }
 
 function fmtSize(amount, type) {
@@ -137,9 +163,39 @@ function evaluate(item, storeName, raw) {
   else if (brandOK && item.brandTokens.length && (coverage >= 0.6 || sizeState === 'ok')) {
     match = 'Alternative';
     note = 'Same brand, different variant/product. ' + sizeNote;
+  } else if (item.pictureBrand && item.pictureBrand.length && item.pictureBrand.every(has)) {
+    match = 'Alternative';
+    note = 'Same brand as your picture, different product. ' + sizeNote;
   } else if (item.alternativesOK && coverage >= 0.6) {
     match = 'Alternative';
     note = 'Other brand/variant. ' + sizeNote;
+  }
+
+  // ---- picture evidence (only when the user supplied a picture and a store thumbnail was compared)
+  const vis = item.hasImage ? raw.vis : null;
+  let visual = null;
+  if (vis) {
+    const T = THRESH[vis.kind];
+    const pct = Math.round(vis.score * 100);
+    visual = pct;
+    const sameBrand = brandOK && item.brandTokens.length > 0 || (item.pictureBrand && item.pictureBrand.length > 0 && item.pictureBrand.every(has));
+    const sizeFine = sizeState === 'ok' || sizeState === 'na';
+    const rough = vis.kind === 'basic' ? ' (rough comparison)' : '';
+    if (match === 'Exact') {
+      if (vis.kind === 'clip' && vis.score < T.similar) {
+        match = 'Alternative';
+        note = `The name matches but the picture looks different (${pct}%). ` + note;
+      } else note = `Picture match ${pct}%${rough}. ` + note;
+    } else if (vis.score >= T.exact && (sameBrand || coverage >= 0.5)) {
+      match = sizeFine ? 'Exact' : 'Alternative';
+      note = `Looks the same as your picture (${pct}%)${rough}. ` + sizeNote;
+    } else if (vis.score >= T.similar) {
+      match = 'Alternative';
+      note = `${sameBrand ? 'Same brand' : 'Other brand'}, similar look (${pct}%)${rough}. ` + sizeNote;
+    }
+  } else if (item.nameFromPicture && match === 'Exact') {
+    match = 'Alternative';
+    note = 'The name came from your picture and the listing photo could not be compared - check it is the same product. ' + note;
   }
   if (!match) return null;
 
@@ -170,6 +226,8 @@ function evaluate(item, storeName, raw) {
     notes: note.trim(),
     url: raw.url || '',
     coverage,
+    visual,
+    visualKind: vis ? vis.kind : '',
   };
 }
 
@@ -189,8 +247,8 @@ function pick(item, storeName, rawList) {
   const exact = rows.filter((r) => r.match === 'Exact').sort(byCost).slice(0, 3);
   const alt = rows
     .filter((r) => r.match === 'Alternative')
-    .sort((a, b) => b.coverage - a.coverage || byCost(a, b))
-    .slice(0, 2);
+    .sort((a, b) => (item.hasImage ? (b.visual || 0) - (a.visual || 0) : 0) || b.coverage - a.coverage || byCost(a, b))
+    .slice(0, item.hasImage ? 3 : 2);
   const out = exact.concat(alt);
   if (!out.length) {
     out.push({ itemId: item.id, store: storeName, product: 'Not found', match: '', notes: 'No matching listing in the search results.', url: '' });
@@ -231,4 +289,4 @@ function summarise(items, rows) {
   return { entries: out, total, missing: out.filter((x) => !x.best).length };
 }
 
-module.exports = { prepareItem, evaluate, pick, summarise, parseQty, sizeSpec, fmtSize };
+module.exports = { prepareItem, applyPicture, evaluate, pick, summarise, parseQty, sizeSpec, fmtSize };

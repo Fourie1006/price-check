@@ -40,6 +40,19 @@ Header row, one item per row. Columns (any order, names not case-sensitive):
 | notes | free text |
 | search terms *(optional)* | words typed into each store search, short works best |
 | must include *(optional)* | words a title must contain to count as an exact match, e.g. `cool,mint` |
+| picture *(optional)* | a file name or path of a photo, if you would rather not paste the photo into the sheet |
+
+### Picture search
+Add a photo of the product to an item's row (Excel: Insert > Pictures > Place Over Cells or Place in Cell), or put a file name in the `picture` column.
+The name can be left blank. For each picture the app:
+1. reads the writing on the pack (brand, product, size) and uses it to search every store;
+2. compares the picture with each store listing photo;
+3. marks listings **Exact** (looks the same and the text agrees) or **Alternative** (same brand but another product, or a similar look from another brand), with a "Look NN%" score.
+
+A short name such as `mouthwash` in the name column helps it find other brands.
+The first picture search downloads a picture model (about 90 MB) once; after that it works offline apart from the stores.
+If the download fails the app falls back to a simple colour and shape comparison, which is rougher.
+Limits: clear, front-on, well-lit photos work best; Makro and listings without a photo are matched on text only; the scores are a guide, not proof.
 
 ## How matching works (and its limits)
 - A listing is **Exact** when it contains the brand and your *must include* words (or most of the name when you give none)

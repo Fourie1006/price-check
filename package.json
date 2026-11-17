@@ -1,21 +1,26 @@
 {
   "name": "price-check",
   "productName": "Price Check",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Load a shopping list from Excel, compare prices across Takealot, Amazon.co.za, Clicks, Dis-Chem and Makro, and export the results to Excel.",
   "main": "main.js",
   "author": "Marnus Fourie",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "test": "node test/run.js",
+    "test": "node test/run.js && node test/pictures.js",
     "sample": "node build/make-sample.js",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac"
   },
   "dependencies": {
-    "exceljs": "^4.4.0"
+    "@tesseract.js-data/eng": "^1.0.0",
+    "exceljs": "^4.4.0",
+    "jimp": "^1.6.1",
+    "jszip": "^3.10.2",
+    "onnxruntime-web": "1.22",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "electron": "^45.3.2",
@@ -33,7 +38,14 @@
       "src/**/*",
       "renderer/**/*",
       "sample/**/*",
-      "package.json"
+      "package.json",
+      "!**/*.map",
+      "!node_modules/onnxruntime-web/dist/*.jsep.*",
+      "!node_modules/onnxruntime-web/dist/ort.webgl*",
+      "!node_modules/onnxruntime-web/dist/ort.webgpu*",
+      "!node_modules/onnxruntime-web/dist/ort.all*",
+      "!node_modules/**/test/**",
+      "!node_modules/**/*.md"
     ],
     "afterPack": "build/afterPack.js",
     "win": {
@@ -70,6 +82,7 @@
     "electronLanguages": [
       "en-US",
       "en-GB"
-    ]
+    ],
+    "asar": false
   }
 }

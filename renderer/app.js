@@ -20,7 +20,10 @@ function renderList() {
   tb.textContent = '';
   for (const it of items) {
     const tr = el('tr');
-    tr.append(td(it.id), td(it.name), td(it.brand || 'any'), td(it.size || ''), td(it.qtyLabel), td(it.alternativesOK ? 'Yes' : 'No'));
+    let pic = '';
+    if (it.thumb) pic = el('img', { src: it.thumb, class: 'thumb', alt: 'picture' });
+    else if (it.pictureError) pic = el('span', { class: 'nf', text: it.pictureError });
+    tr.append(td(it.id), td(pic), td(it.name || (it.hasImage ? 'Read from the picture' : '')), td(it.brand || 'any'), td(it.size || ''), td(it.qtyLabel), td(it.alternativesOK || (it.hasImage && !it.name) ? 'Yes' : 'No'));
     tb.append(tr);
   }
   t.hidden = !items.length;
@@ -69,7 +72,7 @@ $('btn-run').addEventListener('click', async () => {
   $('status').textContent = 'Starting...';
   try {
     last = await window.api.run(items, ids);
-    last.items = items;
+    last.items = last.items || items;
     $('status').textContent = last.cancelled ? 'Cancelled - partial results shown.' : 'Done.';
     renderResults();
   } catch (e) {
@@ -83,6 +86,7 @@ function flags(r) {
   const f = el('span');
   if (r.special) f.append(chip(r.special, 'special'));
   if (r.bulk) f.append(chip(r.bulk + (r.units ? ' x' + r.units : ''), 'bulk'));
+  if (r.visual != null) f.append(chip('Look ' + r.visual + '%', 'look'));
   return f;
 }
 

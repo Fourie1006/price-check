@@ -1,6 +1,9 @@
 'use strict';
 const ExcelJS = require('exceljs');
+const fs = require('fs');
+const path = require('path');
 const { summarise } = require('./match');
+const { inCellImages, floatingImages } = require('./images');
 
 const FONT = 'Arial';
 const HDR = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
@@ -31,6 +34,7 @@ const HEADER_KEYS = {
   notes: 'notes', note: 'notes',
   search: 'search', 'search terms': 'search',
   must: 'must', 'must include': 'must', 'must include words': 'must',
+  picture: 'picture', image: 'picture', photo: 'picture', 'picture file': 'picture', 'image file': 'picture', 'picture path': 'picture',
 };
 
 async function readList(filePath) {
@@ -44,13 +48,23 @@ async function readList(filePath) {
     if (key && !map[key]) map[key] = col;
   });
   if (!map.name) map.name = 1;
+  // pictures: placed over the cells, placed in a cell, or a file path in the "picture" column
+  const pics = floatingImages(wb, ws);
+  for (const [row, buf] of await inCellImages(filePath)) if (!pics.has(row)) pics.set(row, buf);
+  const baseDir = path.dirname(filePath);
   const items = [];
-  ws.eachRow((row, n) => {
-    if (n === 1) return;
+  const last = Math.max(ws.rowCount, ...Array.from(pics.keys()), 1);
+  for (let n = 2; n <= last; n++) {
+    const row = ws.getRow(n);
     const rec = {};
     for (const [k, col] of Object.entries(map)) rec[k] = cellText(row.getCell(col).value);
-    if (rec.name) items.push(rec);
-  });
+    let image = pics.get(n) ? { buffer: pics.get(n), from: 'picture in the sheet' } : null;
+    if (!image && rec.picture) {
+      const fp = path.isAbsolute(rec.picture) ? rec.picture : path.join(baseDir, rec.picture);
+      try { image = { buffer: fs.readFileSync(fp), from: rec.picture }; } catch (e) { rec.pictureError = `Picture file not found: ${rec.picture}`; }
+    }
+    if (rec.name || image) { if (image) rec.image = image; items.push(rec); }
+  }
   if (!items.length) throw new Error('No items found. Put a header row (name, brand, variant, size, quantity, alternatives, notes) and one item per row.');
   return items;
 }
@@ -89,12 +103,22 @@ async function writeTemplate(filePath, items) {
     'alternatives: Yes lets the app also suggest other brands.',
     'search terms (optional): the words typed into each store search. Short is better, e.g. "listerine cool mint".',
     'must include (optional): words a listing title must contain to count as an exact match, separated by commas, e.g. "cool,mint".',
+    'pictures (optional): put a photo of the product on the item row (Insert > Pictures), or type a file name or path in a "picture" column.',
+    'With a picture the app reads the writing on the pack, looks for the same product (exact) and for similar ones, from the same brand or others.',
+    'The name can then be left blank. A short name such as "mouthwash" helps the app find other brands.',
   ].forEach((t, i) => { const c = help.getCell(i + 1, 1); c.value = t; c.font = { name: FONT, size: 10 }; });
   help.getColumn(1).width = 110;
   await wb.xlsx.writeFile(filePath);
 }
 
 function money(c) { c.numFmt = RAND; }
+
+async function smallPicture(buf) {
+  const { Jimp } = require('jimp');
+  const img = await Jimp.read(buf);
+  img.contain({ w: 160, h: 116 });
+  return img.getBuffer('image/png');
+}
 
 async function writeResults(filePath, { items, rows, stores, storeNotes }) {
   const wb = new ExcelJS.Workbook();
@@ -147,14 +171,24 @@ async function writeResults(filePath, { items, rows, stores, storeNotes }) {
   sl.columns = [
     { header: '#', width: 5 }, { header: 'Name', width: 46 }, { header: 'Brand', width: 14 }, { header: 'Variant', width: 30 },
     { header: 'Size', width: 12 }, { header: 'Quantity', width: 10 }, { header: 'Alternatives OK?', width: 13 }, { header: 'Notes', width: 40 },
+    { header: 'Picture', width: 16 },
   ];
   for (const it of items) sl.addRow([it.id, it.name, it.brand, it.variant, it.size, it.qtyLabel, it.alternativesOK ? 'Yes' : 'No', it.notes]);
+  for (let i = 0; i < items.length; i++) {
+    if (!items[i].imageBuffer) continue;
+    try {
+      const small = await smallPicture(items[i].imageBuffer);
+      const id = wb.addImage({ buffer: small, extension: 'png' });
+      sl.getRow(i + 2).height = 64;
+      sl.addImage(id, { tl: { col: 8.1, row: i + 1.1 }, ext: { width: 80, height: 58 } });
+    } catch (e) { /* skip a picture that cannot be embedded */ }
+  }
   styleHeader(sl);
   sl.eachRow((row, n) => { if (n > 1) row.eachCell((c) => { c.font = { name: FONT, size: 10 }; c.border = BORDER; c.alignment = { vertical: 'top', wrapText: true }; }); });
 
   // ---------------- Price Comparison
   const pc = wb.addWorksheet('Price Comparison');
-  const ph = ['Item #', 'Shopping list item', 'Store', 'Product found', 'Match', 'Pack / size', 'Units in listing', 'Price (R)', 'Was price (R)', 'Promo detail', 'Special?', 'Bulk?', 'Price per unit (R)', 'Price per 100 ml/g (R)', 'Qty needed', 'Cost for qty needed (R)', 'Notes', 'Link'];
+  const ph = ['Item #', 'Shopping list item', 'Store', 'Product found', 'Match', 'Pack / size', 'Units in listing', 'Price (R)', 'Was price (R)', 'Promo detail', 'Special?', 'Bulk?', 'Price per unit (R)', 'Price per 100 ml/g (R)', 'Qty needed', 'Cost for qty needed (R)', 'Notes', 'Link', 'Picture match %'];
   pc.getRow(1).values = ph;
   styleHeader(pc, 42);
   const byId = new Map(items.map((i) => [i.id, i]));
@@ -183,10 +217,12 @@ async function writeResults(filePath, { items, rows, stores, storeNotes }) {
     }
     row.getCell(17).value = x.notes || null;
     if (x.url) row.getCell(18).value = { text: x.url, hyperlink: x.url };
+    if (x.visual != null) row.getCell(19).value = x.visual / 100;
     row.eachCell({ includeEmpty: true }, (c, col) => {
       c.font = { name: FONT, size: 10 }; c.border = BORDER;
-      c.alignment = { vertical: 'top', wrapText: col !== 18, horizontal: [1, 5, 7, 11, 12, 15].includes(col) ? 'center' : 'left' };
+      c.alignment = { vertical: 'top', wrapText: col !== 18, horizontal: [1, 5, 7, 11, 12, 15, 19].includes(col) ? 'center' : 'left' };
       if ([8, 9, 13, 14, 16].includes(col)) money(c);
+      if (col === 19) c.numFmt = '0%';
     });
     row.getCell(18).font = { name: FONT, size: 10, color: { argb: 'FF0563C1' }, underline: true };
     if (x.special) row.getCell(11).fill = GREEN;
@@ -194,9 +230,9 @@ async function writeResults(filePath, { items, rows, stores, storeNotes }) {
     if (!found) row.eachCell({ includeEmpty: true }, (c) => { c.fill = GREYF; });
     n++;
   }
-  [7, 34, 13, 46, 12, 12, 9, 11, 11, 24, 11, 8, 12, 12, 10, 14, 52, 40].forEach((w, i) => { pc.getColumn(i + 1).width = w; });
+  [7, 34, 13, 46, 12, 12, 9, 11, 11, 24, 11, 8, 12, 12, 10, 14, 52, 40, 11].forEach((w, i) => { pc.getColumn(i + 1).width = w; });
   pc.views = [{ state: 'frozen', xSplit: 4, ySplit: 1 }];
-  pc.autoFilter = { from: 'A1', to: `R${Math.max(n - 1, 2)}` };
+  pc.autoFilter = { from: 'A1', to: `S${Math.max(n - 1, 2)}` };
 
   // ---------------- Notes
   const nt = wb.addWorksheet('Notes');
@@ -206,6 +242,7 @@ async function writeResults(filePath, { items, rows, stores, storeNotes }) {
     [`Stores searched: ${stores.join(', ')}.`],
     ...(storeNotes || []).map((t) => [t]),
     ['Match column: Exact = the listing matches your name/brand/must-include words and meets your size rule. Alternative = a substitute (different variant, house brand, below your minimum size, or size not shown). Alternatives are kept out of the Best Prices maths. Matching is automatic - please review before buying.'],
+    ['Picture match % (only for items with a picture): how alike the store photo looks to your picture. With the detailed model, about 88% and above is usually the same product and 78% to 88% a similar one. The simple fallback is rougher. Always check the product before buying.'],
     ['SPECIAL = a was-price above the current price. PROMO = the store flags a promotion but shows no was-price. BULK = a multi-pack listing; per-unit price = listing price / units in the pack.'],
     ['Dis-Chem prices marked as members need a Dis-Chem Benefits membership. Marketplace listings (Takealot, Amazon) can have inconsistent pricing - verify odd values.'],
   ];

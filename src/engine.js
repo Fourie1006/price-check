@@ -6,7 +6,8 @@ const { sleep } = require('./session');
 function queriesFor(item, plan) {
   const seen = new Set();
   const out = [];
-  for (const kind of plan) {
+  const kinds = item.hasImage ? plan.concat(['image', 'generic']) : plan;
+  for (const kind of kinds) {
     const q = (item.queries[kind] || '').trim();
     if (q && !seen.has(q.toLowerCase())) { seen.add(q.toLowerCase()); out.push(q); }
   }
@@ -79,6 +80,10 @@ async function runSearch({ items, stores, sessions, hooks }) {
       if (skipped) {
         rows.push({ itemId: item.id, store: store.name, product: 'Not checked', match: '', notes: 'Store skipped.', url: '' });
         continue;
+      }
+      if (item.hasImage && hooks.visual && raw.length) {
+        hooks.onProgress({ store: store.name, item: `${item.name} (comparing pictures)`, step, totalSteps });
+        try { await hooks.visual(item, raw, store); } catch (e) { notes.push(`${store.name}: picture comparison failed for "${item.name}" (${(e && e.message) || e}).`); }
       }
       rows.push(...pick(item, store.name, raw));
       if (failures >= 6) { notes.push(`${store.name}: too many failed searches, stopped early.`); skipped = true; }

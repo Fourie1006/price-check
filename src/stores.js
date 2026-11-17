@@ -25,12 +25,14 @@ function inTakealot(q) {
         const b = v.buybox_summary || {};
         const price = b.prices && b.prices[0];
         const list = b.listing_price;
+        const g = v.gallery && v.gallery.images && v.gallery.images[0];
         return {
           title: core.title,
           price,
           was: list && price && list > price ? list : null,
           promo: '',
           url: core.slug ? 'https://www.takealot.com/' + core.slug + '/PLID' + core.id : null,
+          img: g ? g.replace('{size}', 'pdpxl') : null,
         };
       })
       .filter((x) => x.title && x.price > 0);
@@ -60,7 +62,7 @@ function inAmazon(q) {
       const was = num((e.querySelector('.a-price.a-text-price .a-offscreen') || {}).textContent);
       const asin = e.getAttribute('data-asin');
       if (!title || !price) continue;
-      out.push({ title, price, was: was && was > price ? was : null, promo: '', url: asin ? 'https://www.amazon.co.za/dp/' + asin : null });
+      out.push({ title, price, was: was && was > price ? was : null, promo: '', url: asin ? 'https://www.amazon.co.za/dp/' + asin : null, img: (img && img.getAttribute('src')) || null });
     }
     return out;
   })();
@@ -87,7 +89,8 @@ function inClicks(q) {
       const txt = c.textContent.replace(/\s+/g, ' ').replace(/Delivered in.*$/, '').replace('See more variants', '').trim();
       const m = txt.match(/^(.*?)\s*R\s?([\d,]+\.\d{2})/);
       if (!m) continue;
-      out.push({ title: m[1].trim(), price: parseFloat(m[2].replace(/,/g, '')), was: null, promo: /On promo/i.test(txt) ? 'On promo (Clicks flag)' : '', url: 'https://clicks.co.za' + href });
+      const pimg = Array.from(c.querySelectorAll('img')).map((i) => i.getAttribute('src') || '').find((x) => /^\/medias\/\?context=/.test(x));
+      out.push({ title: m[1].trim(), price: parseFloat(m[2].replace(/,/g, '')), was: null, promo: /On promo/i.test(txt) ? 'On promo (Clicks flag)' : '', url: 'https://clicks.co.za' + href, img: pimg ? 'https://clicks.co.za' + pimg : null });
     }
     return out;
   })();
@@ -116,7 +119,7 @@ function inDischem(q) {
       const price = special ? nums[1] : nums[0];
       const was = special ? nums[0] : null;
       const mem = e.textContent.match(/(\d+)% Off for members/i);
-      out.push({ title, price, was, promo: mem ? mem[1] + '% off for Dis-Chem Benefits members' : '', url: a ? a.getAttribute('href') : null });
+      out.push({ title, price, was, promo: mem ? mem[1] + '% off for Dis-Chem Benefits members' : '', url: a ? a.getAttribute('href') : null, img: (img && img.getAttribute('src')) || null });
     }
     return out;
   })();
